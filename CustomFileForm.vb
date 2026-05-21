@@ -43,6 +43,16 @@ Public Class CustomFileForm
         End Try
     End Sub
 
+    ' Returns the YOUTUBE_URL custom TXXX tag value from a parsed MP3, or "" if absent.
+    Private Function GetYouTubeUrlFromTags(mp3Info As Mp3Info) As String
+        If mp3Info Is Nothing OrElse mp3Info.CommentTags Is Nothing Then Return ""
+        Dim url As String = Nothing
+        If mp3Info.CommentTags.TryGetValue("YOUTUBE_URL", url) Then
+            Return If(url, "").Trim()
+        End If
+        Return ""
+    End Function
+
     Private Sub AddFileToList(filePath As String)
         Try
             ' Check if file already exists
@@ -62,7 +72,7 @@ Public Class CustomFileForm
             ' Create ListView item
             Dim item As New ListViewItem(mp3Info.Artist)
             item.SubItems.Add(mp3Info.Title)
-            item.SubItems.Add("") ' URL - empty for manual entry
+            item.SubItems.Add(GetYouTubeUrlFromTags(mp3Info))
             item.SubItems.Add(filePath) ' Full file path
 
             lvwSongs.Items.Add(item)
