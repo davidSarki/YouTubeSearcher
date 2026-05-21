@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "YouTubeSeracher": {
+    "YouTubeSearcher": {
       "commandName": "Project",
       "nativeDebugging": true,
       "sqlDebugging": true,
