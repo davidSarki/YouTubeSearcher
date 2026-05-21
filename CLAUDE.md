@@ -98,7 +98,8 @@ The first run needs: a SQL Server reachable from the configured connection strin
 
 _Newest entries on top. Update freely as the project evolves._
 
-- **2026-05-21** — Project documented in this file (`CLAUDE.md`) after first GitHub push. No code changes since the typo rename.
+- **2026-05-21** — Fixed two build-blocking issues: removed the hardcoded `G:\…\Applications (17).ico` reference and `<PackageIcon>` from [YouTubeSearcher.vbproj](YouTubeSearcher.vbproj) (icon file wasn't present on this machine; element was NuGet-pack-only and not used by `dotnet build`), and corrected `<MainForm>Form1</MainForm>` → `<MainForm>YouTubeSearcher</MainForm>` in [Application.myapp](My%20Project/Application.myapp#L4). `dotnet build` now succeeds with 0 warnings, 0 errors. To re-add an app icon, drop an `.ico` in the repo and use `<ApplicationIcon>` (not `<PackageIcon>`).
+- **2026-05-21** — Project documented in this file (`CLAUDE.md`) after first GitHub push.
 - **2026-05-21** — Repository initialized and pushed to GitHub. Misspelling `YouTubeSeracher` → `YouTubeSearcher` corrected in `.sln`, `.vbproj`, and `launchSettings.json` (commit `e57b5d4`). Local working folder still named `YouTubeSeracher`; not changed by user decision.
 - **2026-05-21** — `.gitignore` set up for VS / VB.NET: excludes `.vs/`, `bin/`, `obj/`, `*.user`, NuGet caches, `desktop.ini`.
 
@@ -106,8 +107,6 @@ _Newest entries on top. Update freely as the project evolves._
 
 ## Known issues / things to watch
 
-- **Icon path is machine-specific.** [YouTubeSearcher.vbproj:20](YouTubeSearcher.vbproj#L20) references `G:\.shortcut-targets-by-id\…\Applications (17).ico`. Will fail to build anywhere else. Move into the repo (e.g. `assets/app.ico`) and use a relative path.
-- **`MainForm` in `Application.myapp` says `Form1`** ([My Project/Application.myapp:4](My%20Project/Application.myapp#L4)) — the actual startup form is `YouTubeSearcher`. This works because `MySubMain=true` overrides it, but is misleading.
 - **Two `InsertYTStats` paths** exist (manual check + `MERGE`). Pick one and delete the other to avoid divergence.
 - **Regex JSON fallback in YouTube parsing** is fragile by design — when YouTube changes their payload shape, watch for parser warnings in the in-form log.
 - **`SQLCpnnection` field name is misspelled.** Renaming requires migrating any persisted settings file that uses the old name.

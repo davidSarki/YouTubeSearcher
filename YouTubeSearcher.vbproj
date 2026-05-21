@@ -7,20 +7,12 @@
     <UseWindowsForms>true</UseWindowsForms>
     <MyType>WindowsForms</MyType>
     <Copyright>Media World Vision</Copyright>
-    <PackageIcon>Applications (17).ico</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <Import Include="System.Data" />
     <Import Include="System.Drawing" />
     <Import Include="System.Windows.Forms" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="G:\.shortcut-targets-by-id\0B09CFM9jrU7la0tCd2d3S3B1RGM\_daveProgs\7 Icon Pack\Applications\Applications (17).ico">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
