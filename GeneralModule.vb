@@ -1,5 +1,6 @@
 Imports Microsoft.Data.SqlClient
 Imports System.IO
+Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports TagLibSharp = TagLib
 
@@ -381,6 +382,25 @@ Module GeneralModule
             Return False
         End Try
     End Function
+
+    ' Extract YouTube video ID from a full URL, share-link, embed link, or raw 11-char ID.
+    ' Returns "" if no valid 11-char ID can be recovered.
+    Public Function ExtractVideoIdFromUrl(url As String) As String
+        If String.IsNullOrWhiteSpace(url) Then Return ""
+
+        Dim patterns As String() = {
+            "(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})",
+            "youtube\.com/embed/([a-zA-Z0-9_-]{11})",
+            "^([a-zA-Z0-9_-]{11})$"
+        }
+
+        For Each pattern As String In patterns
+            Dim m As Match = Regex.Match(url.Trim(), pattern)
+            If m.Success Then Return m.Groups(1).Value
+        Next
+
+        Return ""
+    End Function
 #End Region
 
 #Region "Processing Files"
@@ -656,10 +676,104 @@ Module GeneralModule
                 End If
                 results.ExistingRecords += 1
             Else
-                ' STEP 3: Search YouTube for video (with delay before calling)
-                If logAction IsNot Nothing Then
-                    logAction($"Step 3: No existing record found. Searching YouTube...{vbcrlf}")
+                ' STEP 2b: Check MP3 YOUTUBE_URL custom tag before searching YouTube
+                Dim taggedUrl As String = ""
+                If mp3Info.CommentTags IsNot Nothing AndAlso mp3Info.CommentTags.ContainsKey("YOUTUBE_URL") Then
+                    taggedUrl = If(mp3Info.CommentTags("YOUTUBE_URL"), "").Trim()
                 End If
+                Dim taggedVideoId As String = ExtractVideoIdFromUrl(taggedUrl)
+                Dim handledByTag As Boolean = False
+
+                If Not String.IsNullOrWhiteSpace(taggedVideoId) Then
+                    If logAction IsNot Nothing Then
+                        logAction($"Step 2b: Found YOUTUBE_URL tag: {taggedUrl}{vbcrlf}")
+                        logAction($"Extracted VideoID from tag: {taggedVideoId}{vbcrlf}")
+                    End If
+
+                    If VideoIdExistsInDatabase(taggedVideoId) Then
+                        If logAction IsNot Nothing Then
+                            logAction($"VideoID from YOUTUBE_URL tag already exists in DB; treating as existing record{vbcrlf}")
+                        End If
+                        videoId = taggedVideoId
+                        results.ExistingRecords += 1
+                        handledByTag = True
+                    Else
+                        videoId = taggedVideoId
+                        If logAction IsNot Nothing Then
+                            logAction($"Step 3 (tag): Getting YouTube stats for tagged VideoID...{vbcrlf}")
+                            logAction($"Waiting 1 second before stats request...{vbcrlf}")
+                        End If
+                        Await Task.Delay(500, cancellationToken)
+
+                        Dim taggedStats As YouTubeStatsModule.YTStatsRecord = Nothing
+
+                        If useAPI AndAlso Not String.IsNullOrWhiteSpace(apiKey) Then
+                            If logAction IsNot Nothing Then
+                                logAction($"Getting stats with YouTube API...{vbcrlf}")
+                            End If
+                            taggedStats = Await YouTubeStatsModule.GetYouTubeVideoStatsAPI(videoId, apiKey, logAction, debugMode)
+                            If taggedStats Is Nothing Then
+                                If logAction IsNot Nothing Then
+                                    logAction($"API stats failed. Waiting 2 seconds before fallback...{vbcrlf}")
+                                End If
+                                Await Task.Delay(500, cancellationToken)
+                                taggedStats = Await YouTubeStatsModule.GetYouTubeVideoStats(videoId, logAction, debugMode)
+                            End If
+                        Else
+                            If logAction IsNot Nothing Then
+                                logAction($"Getting stats with basic method...{vbcrlf}")
+                            End If
+                            taggedStats = Await YouTubeStatsModule.GetYouTubeVideoStats(videoId, logAction, debugMode)
+                        End If
+
+                        If taggedStats IsNot Nothing Then
+                            If logAction IsNot Nothing Then
+                                logAction($"Stats retrieved: Views={taggedStats.ViewCount:N0}, PublishDate={taggedStats.PublishDate:yyyy-MM-dd}{vbcrlf}")
+                                logAction($"Step 4 (tag): Inserting new song record from YOUTUBE_URL tag...{vbcrlf}")
+                            End If
+
+                            Try
+                                InsertYTSong(artistTitle, taggedStats.Title, videoId, taggedStats.PublishDate, taggedStats.Channel, language)
+                                If logAction IsNot Nothing Then
+                                    logAction($"Successfully inserted new song record from YOUTUBE_URL tag{vbcrlf}")
+                                End If
+                                results.NewRecords += 1
+                            Catch ex As Exception
+                                If logAction IsNot Nothing Then
+                                    logAction($"ERROR inserting song record from tag: {ex.Message}{vbcrlf}")
+                                End If
+                                results.ErrorFiles += 1
+                            End Try
+
+                            If logAction IsNot Nothing Then
+                                logAction($"Step 5 (tag): Saving stats to database...{vbcrlf}")
+                            End If
+                            Try
+                                InsertYTStatsWithMerge(videoId, taggedStats.ViewCount, Today.Date)
+                                If logAction IsNot Nothing Then
+                                    logAction($"Stats saved: Views={taggedStats.ViewCount:N0}, Date={Today.Date:yyyy-MM-dd}{vbcrlf}")
+                                End If
+                                results.StatsUpdated += 1
+                            Catch ex As Exception
+                                If logAction IsNot Nothing Then
+                                    logAction($"ERROR saving stats: {ex.Message}{vbcrlf}")
+                                End If
+                            End Try
+                            handledByTag = True
+                        Else
+                            If logAction IsNot Nothing Then
+                                logAction($"Could not get stats for tagged VideoID. Falling back to YouTube search...{vbcrlf}")
+                            End If
+                            videoId = Nothing
+                        End If
+                    End If
+                End If
+
+                If Not handledByTag Then
+                    ' STEP 3: Search YouTube for video (with delay before calling)
+                    If logAction IsNot Nothing Then
+                        logAction($"Step 3: No existing record found. Searching YouTube...{vbcrlf}")
+                    End If
 
                 ' Add delay before YouTube API/scraping call to be respectful
                 If logAction IsNot Nothing Then
@@ -797,6 +911,7 @@ Module GeneralModule
                     results.NotFoundFiles += 1
                     Return
                 End If
+                End If ' closes If Not handledByTag
             End If
 
             ' For existing records, still get current stats
