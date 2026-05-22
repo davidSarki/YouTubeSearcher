@@ -50,3 +50,6 @@ $RECYCLE.BIN/
 *.tmp
 *.bak
 *.swp
+
+# Local publish staging (used to copy to network share)
+publish_stage/

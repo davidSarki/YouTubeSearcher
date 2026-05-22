@@ -19,7 +19,8 @@ Public Class YouTubeSearcher
     Private isProcessing As Boolean = False
     Private autoProcessingEnabled As Boolean = False
 
-    ' Form Load - Initialize TreeView
+    ' Form Load - fast UI init only. Slow settings/TreeView state load is
+    ' deferred to YouTubeSearcher_Shown so the window appears immediately.
     Private Sub YouTubeSearcher_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             Me.Text = $"YouTube Searcher - Version {Application.ProductVersion}"
@@ -36,19 +37,32 @@ Public Class YouTubeSearcher
             ' Initially disable Remove button until a root folder is selected (existing code)
             btnRemoveFolder.Enabled = False
             ' Ensure STOP button is hidden on startup
-
             HideStopButton()
-            ' Load saved settings and TreeView state
-            LoadFormSettings()
 
+            StatusText.Text = "Loading saved state..."
+
+        Catch ex As Exception
+            logtxt.AppendText($"Error initializing form: {ex.Message}{vbCrLf}")
+        End Try
+    End Sub
+
+    ' Runs after the form is first displayed. The window is already visible
+    ' here, so users see "Loading saved state..." while LoadFormSettings runs.
+    Private Sub YouTubeSearcher_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+        Try
+            Me.Cursor = Cursors.WaitCursor
+            Application.DoEvents() ' let the form paint before the slow work begins
+
+            LoadFormSettings()
             ConnectionString = SQLString.Text
 
             StatusText.Text = "Ready"
             logtxt.AppendText($"YouTube Searcher initialized{vbCrLf}")
 
-
         Catch ex As Exception
-            logtxt.AppendText($"Error initializing form: {ex.Message}{vbCrLf}")
+            logtxt.AppendText($"Error loading settings: {ex.Message}{vbCrLf}")
+        Finally
+            Me.Cursor = Cursors.Default
         End Try
     End Sub
     ''' <summary>

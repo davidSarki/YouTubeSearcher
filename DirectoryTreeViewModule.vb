@@ -1304,20 +1304,24 @@ Module DirectoryTreeViewModule
                     Return
                 End If
 
-                treeView.Nodes.Clear()
-                Dim totalNodes As Integer = CountStatesRecursive(rootStates)
-                Dim currentNode As Integer = 0
+                treeView.BeginUpdate()
+                Try
+                    treeView.Nodes.Clear()
+                    Dim totalNodes As Integer = CountStatesRecursive(rootStates)
+                    Dim currentNode As Integer = 0
 
-                For Each rootState As TreeNodeState In rootStates
-                    Dim rootNode As DirectoryTreeNode = ConvertStateToNode(rootState, progressBar, statusLabel, currentNode, totalNodes)
-                    If rootNode IsNot Nothing Then
-                        treeView.Nodes.Add(rootNode)
-                        If rootState.IsExpanded Then rootNode.Expand()
-                    End If
-                Next
+                    For Each rootState As TreeNodeState In rootStates
+                        Dim rootNode As DirectoryTreeNode = ConvertStateToNode(rootState, progressBar, statusLabel, currentNode, totalNodes)
+                        If rootNode IsNot Nothing Then
+                            treeView.Nodes.Add(rootNode)
+                            If rootState.IsExpanded Then rootNode.Expand()
+                        End If
+                    Next
+                Finally
+                    treeView.EndUpdate()
+                End Try
 
                 UpdateStatus(statusLabel, "State loaded successfully from: " & Path.GetFileName(LoadFilename))
-                treeView.Refresh()
             End If
         Catch ex As Exception
             UpdateStatus(statusLabel, "Load error: " & ex.Message)
@@ -1390,7 +1394,9 @@ Module DirectoryTreeViewModule
                                        Optional totalNodes As Integer = 0) As DirectoryTreeNode
         Try
             currentNode += 1
-            If progressBar IsNot Nothing AndAlso totalNodes > 0 Then
+            ' Throttle UI refresh: ~1000 nodes * Refresh+DoEvents per call was the bottleneck.
+            ' Update every 50 nodes (and at the end) — keeps progress visible without a paint storm.
+            If progressBar IsNot Nothing AndAlso totalNodes > 0 AndAlso (currentNode Mod 50 = 0 OrElse currentNode >= totalNodes) Then
                 UpdateProgressWithCounter(progressBar, statusLabel, currentNode, totalNodes, "Loading: " & state.Text)
             End If
 
